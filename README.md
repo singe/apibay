@@ -15,6 +15,7 @@ Run commands from this directory:
 
 ```sh
 ./apibay.py search "the last starfighter"
+./apibay.py search --columns uploader "the last starfighter"
 ./apibay.py search the last starfighter
 ./apibay.py details 83808736
 ./apibay.py magnet 83808736
@@ -22,7 +23,7 @@ Run commands from this directory:
 
 ## Output
 
-`search` results show the ID, size, seeders/leechers, date added, and name. Dates use `DD/MM/YY` in the machine's local timezone. It tries to be smart with padding.
+`search` results show the ID, size, seeders/leechers, date added, and name. Dates use `DD/MM/YY` in the machine's local timezone. It tries to be smart with padding. Pass `--columns uploader` to append the uploader name; unavailable names display as `-`.
 `details` begins with the same summary layout, followed by the description and a tab-separated list of file names and sizes.
 `magnet` prints a magnet URI for the entry.
 

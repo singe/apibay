@@ -141,7 +141,12 @@ def colourize(value, code):
     return f"\033[{code}m{text}\033[0m"
 
 
-def column_widths(entries):
+def format_uploader(entry):
+    username = sanitize_terminal_text(entry.get("username") or "").strip()
+    return username or "-"
+
+
+def column_widths(entries, include_uploader=False):
     ids = [sanitize_terminal_text(entry.get("id", "unknown")) for entry in entries]
     sizes = [format_size(entry.get("size")) for entry in entries]
     swarms = [
@@ -151,16 +156,20 @@ def column_widths(entries):
         )
         for entry in entries
     ]
-    return {
+    widths = {
         "id": max((len(value) for value in ids), default=0),
         "size": max((len(value) for value in sizes), default=0),
         "swarm": max((len(value) for value in swarms), default=0),
     }
+    if include_uploader:
+        uploaders = [format_uploader(entry) for entry in entries]
+        widths["uploader"] = max((len(value) for value in uploaders), default=0)
+    return widths
 
 
-def entry_line(entry, widths=None):
+def entry_line(entry, widths=None, include_uploader=False):
     if widths is None:
-        widths = column_widths([entry])
+        widths = column_widths([entry], include_uploader=include_uploader)
 
     raw_id = sanitize_terminal_text(entry.get("id", "unknown"))
     raw_size = format_size(entry.get("size"))
@@ -175,7 +184,12 @@ def entry_line(entry, widths=None):
     swarm += colourize("/", "2") + colourize(raw_leechers, "31")
     added = colourize(format_added(entry.get("added")), "2")
     name = colourize(entry.get("name", "(unnamed)"), "1")
-    return f"{entry_id} {size} {swarm} {added} {name}"
+    line = f"{entry_id} {size} {swarm} {added} {name}"
+    if include_uploader:
+        uploader = format_uploader(entry)
+        uploader = colourize(f"{uploader:>{widths['uploader']}}", "35")
+        line += f" {uploader}"
+    return line
 
 
 def is_missing_entry(entry):
@@ -194,7 +208,7 @@ def normalize_entry(payload):
     return payload
 
 
-def search(query):
+def search(query, columns=None):
     payload = fetch_json("q.php", q=query)
     if isinstance(payload, dict):
         entries = [payload]
@@ -208,9 +222,10 @@ def search(query):
         print("No results found.")
         return
 
-    widths = column_widths(entries)
+    include_uploader = columns == "uploader"
+    widths = column_widths(entries, include_uploader=include_uploader)
     for entry in entries:
-        print(entry_line(entry, widths=widths))
+        print(entry_line(entry, widths=widths, include_uploader=include_uploader))
 
 
 def normalize_files(payload):
@@ -255,6 +270,9 @@ def details(entry_id):
         raise ApiError(f"no entry found for ID {entry_id}")
 
     print(entry_line(entry))
+
+    print(colourize("Uploaded by:", "36;1"), colourize(format_uploader(entry), "1"))
+
     print(colourize("Description:", "36;1"))
     description = entry.get("description") or entry.get("descr")
     print(sanitize_terminal_text(description, multiline=True) if description else "No description available.")
@@ -300,6 +318,11 @@ def build_parser():
     commands = parser.add_subparsers(dest="command", required=True)
 
     search_parser = commands.add_parser("search", help="search for entries")
+    search_parser.add_argument(
+        "--columns",
+        choices=("uploader",),
+        help="add an optional search column",
+    )
     search_parser.add_argument("query", nargs="+", help="search terms")
 
     details_parser = commands.add_parser("details", help="show entry details and files")
@@ -315,7 +338,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
         if args.command == "search":
-            search(" ".join(args.query))
+            search(" ".join(args.query), columns=args.columns)
         elif args.command == "details":
             details(args.id)
         else:
